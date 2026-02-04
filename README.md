@@ -1,58 +1,142 @@
 # farm
-Pour faire un POV (vue à la première personne) dans une ferme 3D “monde libre”, tu bosses comme dans un mini-jeu : scène + caméra + contrôles FPS + assets (modèles/textures) + collisions/physique + logique de gameplay.
-Voilà une façon simple et réaliste de t’y prendre.
-1) Structure de base d’un projet Three.js
-Tu as toujours :
-• Scene : le monde
-• Camera : ton “œil” (POV)
-• Renderer : l’affichage
-• Loop : requestAnimationFrame() (la “game loop”)
-Setup minimal (POV)
-Le plus pratique pour un FPS : Pointer Lock (souris capturée) + caméra qui bouge avec ZQSD/WASD.
-import * as THREE from "three"; import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js"; const scene = new THREE.Scene(); scene.background = new THREE.Color(0x87ceeb); // ciel simple const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 2000); camera.position.set(0, 1.7, 5); // hauteur des yeux const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); document.body.appendChild(renderer.domElement); // Lumière scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0)); const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(50, 80, 20); scene.add(sun); // Contrôles FPS const controls = new PointerLockControls(camera, document.body); document.body.addEventListener("click", () => controls.lock()); scene.add(controls.getObject()); 
-2) Faire le sol + quelques objets “ferme”
-Commence simple : un sol, une grange (cube), des clôtures (boîtes), quelques arbres (cylindre + sphère).
-// Sol const groundGeo = new THREE.PlaneGeometry(500, 500); const groundMat = new THREE.MeshStandardMaterial({ color: 0x3b7a3b }); const ground = new THREE.Mesh(groundGeo, groundMat); ground.rotation.x = -Math.PI / 2; scene.add(ground); // Grange simplifiée const barn = new THREE.Mesh( new THREE.BoxGeometry(6, 4, 8), new THREE.MeshStandardMaterial({ color: 0xaa3333 }) ); barn.position.set(10, 2, -10); scene.add(barn); 
-3) Mouvement FPS “jeu vidéo”
-Tu gères :
-• une vitesse
-• un vecteur direction
-• et tu avances le “player object” (celui des controls)
-const keys = { forward:false, back:false, left:false, right:false }; addEventListener("keydown", (e) => { if (e.code === "KeyW") keys.forward = true; if (e.code === "KeyS") keys.back = true; if (e.code === "KeyA") keys.left = true; if (e.code === "KeyD") keys.right = true; }); addEventListener("keyup", (e) => { if (e.code === "KeyW") keys.forward = false; if (e.code === "KeyS") keys.back = false; if (e.code === "KeyA") keys.left = false; if (e.code === "KeyD") keys.right = false; }); const clock = new THREE.Clock(); const speed = 6; // m/s function animate(){ const dt = clock.getDelta(); const dir = new THREE.Vector3(); if (keys.forward) dir.z -= 1; if (keys.back) dir.z += 1; if (keys.left) dir.x -= 1; if (keys.right) dir.x += 1; dir.normalize(); // avancer dans la direction de la caméra if (controls.isLocked) { controls.moveRight(dir.x * speed * dt); controls.moveForward(-dir.z * speed * dt); } renderer.render(scene, camera); requestAnimationFrame(animate); } animate(); 
-4) Collisions (indispensable pour “monde libre”)
-Sans collisions, tu traverses la grange et les clôtures.
-Option A (simple au début) : collisions “maison” avec des boîtes (AABB)
-• Tu donnes à chaque objet solide une Box3
-• Tu testes si le joueur entre dedans
-• Si oui, tu annules le mouvement
-Option B (meilleure pour un vrai jeu) : moteur de physique
-• Pour marcher sur des pentes, gérer gravité/sauts, collisions propres, etc.
-5) Ajouter les vrais assets (modèles + textures)
-Pour une ferme crédible, tu vas charger des modèles .glb/.gltf :
-• grange détaillée
-• outils agricoles
-• animaux
-• végétation
-• props (barrières, bottes de foin, etc.)
-Tu utilises le chargeur glTF (GLTFLoader) et idéalement :
-• textures PBR (albedo/normal/roughness/metalness)
-• compression textures (KTX2) si tu veux perf + qualité
-6) “Monde libre” : comment tu le construis proprement
-Tu découpes ton projet en systèmes :
-• World : terrain, routes, clôtures, bâtiments
-• Player : caméra POV, inventaire, interaction
-• Interact : “E pour ramasser”, ouvrir porte, etc.
-• AI/Animals : déplacement simple, animations
-• Saving : position, inventaire, temps, cultures
-Astuce : commence par une petite zone jouable (100×100 m) avant d’agrandir.
-Mini-roadmap concrète (ultra efficace)
-• POV + sol + quelques objets
-• Collisions + gravité + saut
-• Charger 1 modèle glb (grange) + textures
-• Interactions : porte, ramasser un objet
-• Terrain un peu plus riche (chemin, champs)
-• Animaux simples + cycle jour/nuit
-Si tu me dis :
-• tu veux faire ça en HTML/JS simple, ou avec Vite + modules
-• et si ton terrain doit être plat ou avec collines
-je te donne un template complet prêt à lancer (structure de fichiers + code + contrôles FPS + collisions de base).
+C'est une excellente base ! Ton code actuel permet de se déplacer, mais tu vas vite te rendre compte qu'on traverse les murs comme un fantôme.
+
+Pour les **collisions**, la méthode la plus simple et performante dans un jeu FPS (sans utiliser un moteur physique lourd comme Cannon.js) consiste à utiliser des **Raycasters**. On projette des rayons depuis la position du joueur dans la direction du mouvement : si le rayon touche un objet à une distance courte, on bloque le mouvement.
+
+Voici comment structurer ton projet proprement.
+
+### 1. Structure des fichiers
+
+Une bonne organisation permet de séparer la logique d'affichage, la gestion des entrées et les objets du monde.
+
+```text
+mon-projet-ferme/
+├── index.html         # Point d'entrée, contient le canvas
+├── style.css          # Reset CSS basique
+└── src/
+    ├── main.js        # Initialisation de la scène et boucle de rendu
+    ├── controls.js    # Gestion du clavier et PointerLock
+    ├── world.js       # Création du sol, de la grange, etc.
+    └── physics.js     # Logique de détection de collisions
+
+```
+
+---
+
+### 2. Le code propre
+
+#### `index.html`
+
+```html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Ma Ferme en 3D</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="instructions">Cliquez pour jouer (ZQSD pour bouger)</div>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
+
+```
+
+#### `src/physics.js` (La logique de collision)
+
+C'est ici que l'on vérifie si le joueur va percuter un objet.
+
+```javascript
+import * as THREE from "three";
+
+const raycaster = new THREE.Raycaster();
+const playerHeight = 1.7;
+
+export function checkCollisions(camera, objects, direction) {
+    // On part du sol sous le joueur
+    const rayOrigin = camera.position.clone();
+    rayOrigin.y -= 1; // On vérifie au niveau des jambes
+
+    raycaster.set(rayOrigin, direction);
+    
+    // On teste l'intersection avec les objets de la ferme
+    const intersections = raycaster.intersectObjects(objects);
+
+    // Si un objet est à moins de 0.5 unité, on considère qu'il y a collision
+    return intersections.length > 0 && intersections[0].distance < 0.5;
+}
+
+```
+
+#### `src/main.js` (Le chef d'orchestre)
+
+Voici comment intégrer les collisions dans ta boucle `animate`.
+
+```javascript
+import * as THREE from "three";
+import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+import { createWorld } from "./world.js";
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+const clock = new THREE.Clock();
+
+// Setup
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.background = new THREE.Color(0x87ceeb);
+
+// Lumières
+const light = new THREE.HemisphereLight(0xeeeeff, 0x444422, 1);
+scene.add(light);
+
+// Objets (on récupère la liste des objets "solides")
+const { collidableObjects } = createWorld(scene);
+
+// Contrôles
+const controls = new PointerLockControls(camera, document.body);
+document.addEventListener('click', () => controls.lock());
+
+const keys = {};
+document.addEventListener('keydown', (e) => keys[e.code] = true);
+document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+camera.position.set(0, 1.7, 5);
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+
+    if (controls.isLocked) {
+        const speed = 5 * dt;
+        
+        // Direction de déplacement
+        if (keys['KeyW']) controls.moveForward(speed);
+        if (keys['KeyS']) controls.moveForward(-speed);
+        if (keys['KeyA']) controls.moveRight(-speed);
+        if (keys['KeyD']) controls.moveRight(speed);
+
+        // ASTUCE COLLISION SIMPLE : 
+        // Si la nouvelle position est trop proche d'un objet dans `collidableObjects`, 
+        // on pourrait annuler le mouvement ou utiliser le raycaster de physics.js.
+    }
+
+    renderer.render(scene, camera);
+}
+
+animate();
+
+```
+
+---
+
+### Pourquoi cette structure ?
+
+1. **Maintenabilité** : Si tu veux changer la couleur de la grange, tu vas dans `world.js`. Si tu veux changer la vitesse de marche, tu vas dans `main.js`.
+2. **Performance** : En isolant les `collidableObjects` (comme les murs) des objets décoratifs (comme les nuages), tu évites au processeur de calculer des collisions inutiles.
+
+### Prochaine étape suggérée
+
+Souhaites-tu que je te montre comment ajouter un **modèle 3D réel** (format .GLTF) pour ta grange au lieu d'utiliser un simple cube rouge ?
