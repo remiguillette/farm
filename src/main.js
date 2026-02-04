@@ -13,7 +13,7 @@ scene.background = new THREE.Color(0x87ceeb);
 
 scene.add(new THREE.HemisphereLight(0xeeeeff, 0x444422, 1));
 
-const { collidableObjects = [] } = createWorld(scene);
+const { collidableObjects = [] } = createWorld(scene, THREE);
 
 const controls = new PointerLockControls(camera, document.body);
 const instructions = document.getElementById("instructions");

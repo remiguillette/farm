@@ -1,7 +1,5 @@
 // src/world.js
-import * as THREE from "three";
-
-export function createWorld(scene) {
+export function createWorld(scene, THREE) {
   const collidableObjects = [];
 
   // Sol
