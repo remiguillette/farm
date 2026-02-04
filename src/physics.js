@@ -1,18 +1,13 @@
-import * as THREE from "three";
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
 const raycaster = new THREE.Raycaster();
-const playerHeight = 1.7;
 
 export function checkCollisions(camera, objects, direction) {
-    // On part du sol sous le joueur
-    const rayOrigin = camera.position.clone();
-    rayOrigin.y -= 1; // On vérifie au niveau des jambes
+  const rayOrigin = camera.position.clone();
+  rayOrigin.y -= 1;
 
-    raycaster.set(rayOrigin, direction);
-    
-    // On teste l'intersection avec les objets de la ferme
-    const intersections = raycaster.intersectObjects(objects);
+  raycaster.set(rayOrigin, direction);
+  const intersections = raycaster.intersectObjects(objects, true); // true = check enfants aussi
 
-    // Si un objet est à moins de 0.5 unité, on considère qu'il y a collision
-    return intersections.length > 0 && intersections[0].distance < 0.5;
+  return intersections.length > 0 && intersections[0].distance < 0.5;
 }
