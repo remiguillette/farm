@@ -1,36 +1,53 @@
-// 1. Les Imports (en haut du fichier)
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+import { createWorld } from "./world.js";
 
-// 2. Initialisation (Ton code actuel)
 const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+const clock = new THREE.Clock();
+
+// Setup
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 scene.background = new THREE.Color(0x87ceeb);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+// Lumières
+const light = new THREE.HemisphereLight(0xeeeeff, 0x444422, 1);
+scene.add(light);
+
+// Objets (on récupère la liste des objets "solides")
+const { collidableObjects } = createWorld(scene);
+
+// Contrôles
+const controls = new PointerLockControls(camera, document.body);
+document.addEventListener('click', () => controls.lock());
+
+const keys = {};
+document.addEventListener('keydown', (e) => keys[e.code] = true);
+document.addEventListener('keyup', (e) => keys[e.code] = false);
+
 camera.position.set(0, 1.7, 5);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-document.body.appendChild(renderer.domElement);
-
-// Lumières et Contrôles
-scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-sun.position.set(50, 80, 20);
-scene.add(sun);
-
-const controls = new PointerLockControls(camera, document.body);
-document.body.addEventListener("click", () => controls.lock());
-scene.add(controls.getObject());
-
-// 3. La boucle d'animation (ESSENTIEL pour voir le rendu)
 function animate() {
     requestAnimationFrame(animate);
+    const dt = clock.getDelta();
 
-    // Si tu ajoutes des mouvements plus tard, c'est ici !
-    
+    if (controls.isLocked) {
+        const speed = 5 * dt;
+        
+        // Direction de déplacement
+        if (keys['KeyW']) controls.moveForward(speed);
+        if (keys['KeyS']) controls.moveForward(-speed);
+        if (keys['KeyA']) controls.moveRight(-speed);
+        if (keys['KeyD']) controls.moveRight(speed);
+
+        // ASTUCE COLLISION SIMPLE : 
+        // Si la nouvelle position est trop proche d'un objet dans `collidableObjects`, 
+        // on pourrait annuler le mouvement ou utiliser le raycaster de physics.js.
+    }
+
     renderer.render(scene, camera);
 }
 
-animate(); // On lance la boucle
+animate();
